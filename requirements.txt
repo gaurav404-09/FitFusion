@@ -1,0 +1,21 @@
+# Core Server Requirements
+flask>=2.3.0
+flask-cors>=4.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+google-generativeai>=0.1.0
+pillow>=10.0.0
+
+# Agent Requirements
+langchain
+langgraph
+google-genai>=0.1.0
+supabase>=2.4.0
+cohere>=5.13.0
+
+# Machine Learning Requirements (Mental Wellness Predictor)
+pandas
+numpy
+scikit-learn
+scipy
+torch
