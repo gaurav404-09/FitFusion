@@ -3,7 +3,7 @@ import React from "react";
 import { NavigationContainer, getFocusedRouteNameFromRoute, useNavigationContainerRef } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { View, Text, StyleSheet, Platform, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, Platform, TouchableOpacity, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -172,7 +172,7 @@ function CommunityStack() {
 }
 
 function MoreMenu({ navigation }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, logout } = useAuth();
   const items = [
     { icon: "🧠", label: "AI Health Insights", screen: "HealthInsights", color: COLORS.violet },
     { icon: "🔥", label: "Campus Pulse", screen: "CampusPulse", color: COLORS.primary },
@@ -198,6 +198,26 @@ function MoreMenu({ navigation }) {
           <Text style={moreStyles.arrow}>›</Text>
         </TouchableOpacity>
       ))}
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          if (Platform.OS === 'web') {
+            if (window.confirm('Are you sure you want to logout?')) {
+              logout();
+            }
+          } else {
+            Alert.alert('Logout', 'Are you sure you want to logout?', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Logout', style: 'destructive', onPress: logout },
+            ]);
+          }
+        }}
+        style={[moreStyles.item, { marginTop: SPACING.lg, borderColor: COLORS.error + '44' }]}
+      >
+        <View style={[moreStyles.iconBg, { backgroundColor: COLORS.error + "22" }]}><Text style={{ fontSize: 22 }}>👋</Text></View>
+        <Text style={[moreStyles.label, { color: COLORS.error, ...FONTS.bold }]}>Logout</Text>
+      </TouchableOpacity>
     </View>
   );
 }

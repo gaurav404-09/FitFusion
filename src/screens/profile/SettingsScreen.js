@@ -64,26 +64,38 @@ export default function SettingsScreen({ navigation }) {
     }
 
     function handleLogout() {
-        Alert.alert('Logout', 'Are you sure you want to logout?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Logout', style: 'destructive', onPress: logout },
-        ]);
+        if (Platform.OS === 'web') {
+            if (window.confirm('Are you sure you want to logout?')) {
+                logout();
+            }
+        } else {
+            Alert.alert('Logout', 'Are you sure you want to logout?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Logout', style: 'destructive', onPress: logout },
+            ]);
+        }
     }
 
     function handleClearData() {
-        Alert.alert(
-            'Clear All Data',
-            'This will delete all your local data. This action cannot be undone.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Clear', style: 'destructive', onPress: async () => {
-                        await db.clearAll();
-                        logout();
-                    }
-                },
-            ]
-        );
+        if (Platform.OS === 'web') {
+            if (window.confirm('This will delete all your local data. This action cannot be undone. Proceed?')) {
+                db.clearAll().then(() => logout());
+            }
+        } else {
+            Alert.alert(
+                'Clear All Data',
+                'This will delete all your local data. This action cannot be undone.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Clear', style: 'destructive', onPress: async () => {
+                            await db.clearAll();
+                            logout();
+                        }
+                    },
+                ]
+            );
+        }
     }
 
     return (
