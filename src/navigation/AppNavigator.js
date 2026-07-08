@@ -92,7 +92,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
 
 function StudentTabs() {
   return (
-    <Tab.Navigator tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }} sceneContainerStyle={{ flex: 1 }}>
       <Tab.Screen
         name="Home"
         component={HomeStack}
@@ -114,7 +114,7 @@ function StudentTabs() {
 
 function HomeStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}>
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="AIChat" component={AIChatInterface} />
     </Stack.Navigator>
@@ -123,7 +123,7 @@ function HomeStack() {
 
 function NutritionStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}>
       <Stack.Screen name="NutritionMain" component={NutritionScreen} />
       <Stack.Screen name="FoodLog" component={FoodLogScreen} />
       <Stack.Screen name="FoodScanner" component={FoodScannerScreen} />
@@ -133,7 +133,7 @@ function NutritionStack() {
 
 function FitnessStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}>
       <Stack.Screen name="FitnessMain" component={FitnessScreen} />
       <Stack.Screen name="LogActivity" component={LogActivityScreen} />
       <Stack.Screen name="Achievements" component={AchievementsScreen} />
@@ -143,7 +143,7 @@ function FitnessStack() {
 
 function WellnessStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}>
       <Stack.Screen name="WellnessMain" component={WellnessScreen} />
       <Stack.Screen name="MoodLog" component={MoodLogScreen} />
       <Stack.Screen name="Journal" component={JournalScreen} />
@@ -156,7 +156,7 @@ function WellnessStack() {
 
 function CommunityStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}>
       <Stack.Screen name="CommunityMain" component={MoreMenu} />
       <Stack.Screen name="Environment" component={EnvironmentScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
@@ -204,7 +204,7 @@ function MoreMenu({ navigation }) {
 
 function AdminTabs() {
   return (
-    <Tab.Navigator tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }} sceneContainerStyle={{ flex: 1 }}>
       <Tab.Screen name="CampusAnalytics" component={CampusAnalyticsStack} />
       <Tab.Screen name="Alerts" component={AdminAlertsStack} />
       <Tab.Screen name="Operations" component={OperationsStack} />
@@ -213,15 +213,15 @@ function AdminTabs() {
 }
 
 function CampusAnalyticsStack() {
-  return <Stack.Navigator screenOptions={{ headerShown: false }}><Stack.Screen name="CampusAnalyticsMain" component={AnalyticsScreen} /></Stack.Navigator>;
+  return <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}><Stack.Screen name="CampusAnalyticsMain" component={AnalyticsScreen} /></Stack.Navigator>;
 }
 
 function AdminAlertsStack() {
-  return <Stack.Navigator screenOptions={{ headerShown: false }}><Stack.Screen name="AdminAlertsMain" component={AdminDashboardScreen} /></Stack.Navigator>;
+  return <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}><Stack.Screen name="AdminAlertsMain" component={AdminDashboardScreen} /></Stack.Navigator>;
 }
 
 function OperationsStack() {
-  return <Stack.Navigator screenOptions={{ headerShown: false }}><Stack.Screen name="OperationsMain" component={EnvironmentScreen} /></Stack.Navigator>;
+  return <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { flex: 1 } }}><Stack.Screen name="OperationsMain" component={EnvironmentScreen} /></Stack.Navigator>;
 }
 
 function RootNavigator() {
@@ -268,7 +268,7 @@ export default function AppNavigator() {
   }
   return (
     <NavigationContainer ref={navRef}>
-      <Stack.Navigator screenOptions={{ headerShown: false, animationEnabled: Platform.OS !== "web" }}>
+      <Stack.Navigator screenOptions={{ headerShown: false, animationEnabled: Platform.OS !== "web", cardStyle: { flex: 1 } }}>
         {!user ? (
           isOnboarded ? (
             <><Stack.Screen name="Login" component={LoginScreen} /><Stack.Screen name="Register" component={RegisterScreen} /></>

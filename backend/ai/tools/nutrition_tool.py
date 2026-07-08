@@ -66,13 +66,31 @@ class NutritionTool:
         return client
 
     def _ensure_user_exists(self, user_id: str) -> None:
-        """Upsert a minimal row in the users table so FK constraints pass."""
+        """Ensure a row exists in public.users for this auth user."""
         try:
-            self.supabase.table("users").upsert(
-                {"id": user_id},
-                on_conflict="id",
-                ignore_duplicates=True,
-            ).execute()
+            result = self.supabase.table("users").select("id").eq("id", user_id).execute()
+            if result.data and len(result.data) > 0:
+                return
+
+            # Row is missing — try to fetch data from Supabase Auth admin API
+            email = f"{user_id[:8]}@fitfusion.app"
+            name = user_id[:8]
+            try:
+                auth_resp = self.supabase.auth.admin.get_user_by_id(user_id)
+                if auth_resp and auth_resp.user:
+                    email = auth_resp.user.email or email
+                    meta = auth_resp.user.user_metadata or {}
+                    name = meta.get("name") or meta.get("full_name") or email.split("@")[0]
+            except Exception as ae:
+                print(f"[NutritionTool] auth.admin.get_user_by_id failed: {ae}")
+
+            self.supabase.table("users").insert({
+                "id": user_id,
+                "email": email,
+                "name": name,
+                "role": "student",
+            }).execute()
+            print(f"[NutritionTool] Created missing user row for {user_id}")
         except Exception as e:
             print(f"[NutritionTool] _ensure_user_exists warning: {e}")
 
