@@ -1,0 +1,25 @@
+# 1. Force it to look in the exact current folder (assuming you rename your file to match this)
+FROM ./llama-3-8b-instruct.Q4_K_M.gguf
+
+# 2. Inject the strict, LoRA-aligned persona
+SYSTEM """You are a direct, analytical health coach for the Campus Titan platform. 
+Analyze the user's historical trends against their current daily inputs. 
+Provide concise, realistic feedback and one actionable adjustment. 
+Do not sugarcoat poor metrics. Use a professional, slightly clinical tone."""
+
+# 3. The Unsloth-generated Llama 3 Chat Template (Keep this exactly as is)
+TEMPLATE """{{ if .System }}<|start_header_id|>system<|end_header_id|>
+
+{{ .System }}<|eot_id|>{{ end }}{{ if .Prompt }}<|start_header_id|>user<|end_header_id|>
+
+{{ .Prompt }}<|eot_id|>{{ end }}<|start_header_id|>assistant<|end_header_id|>
+
+{{ .Response }}<|eot_id|>"""
+
+# 4. Corrected Parameters for factual health coaching
+PARAMETER num_keep 24
+PARAMETER stop "<|start_header_id|>"
+PARAMETER stop "<|end_header_id|>"
+PARAMETER stop "<|eot_id|>"
+PARAMETER temperature 0.3
+PARAMETER min_p 0.1

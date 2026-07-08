@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "FitFusion",
+    "slug": "sentinel",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F0F7FF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMotionUsageDescription": "FitFusion uses your physical activity data to track steps and wellness metrics."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.rishi126.fit"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-camera",
+      "expo-sensors",
+      "expo-font"
+    ],
+"extra": {
+      "eas": {
+        "projectId": "f7dd4a80-d64e-41ec-82f9-d98aceeca9ac"
+      },
+      "weatherApiKey": "e92c524e563cce742552736ec729266a"
+    },
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/3f54f3cc-82f1-4215-84da-16ba2ecc7228"
+    },
+    "owner": "rishi_69"
+  }
+}

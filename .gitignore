@@ -1,0 +1,242 @@
+# OSX
+.DS_Store
+
+# Xcode
+build/
+*.pbxuserstate
+project.xcworkspace
+xcuserdata
+
+# Babel
+.babelrc
+.babelrc.js
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+**/.env*.local
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Migration files
+MIGRATION_INSTRUCTIONS.md
+migration_admin_users_rpc.sql
+migration_analytics_rpc.sql
+migration_fix_unique.sql
+migration_nutrition_goals.sql
+migration_rls_policies.sql
+migration_admin_service_role.sql
+
+
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+# User requested to push .env, but let's ignore variants
+.env*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Temporary folders
+tmp/
+temp/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Android
+*.apk
+*.aab
+android/app/build/
+!android/.gradle/
+!.gradle/
+
+
+# iOS
+*.ipa
+# ios/
+
+# Metro
+.metro-health-check*
+
+# EAS
+eas-build-metadata.json
+
+# Model/Binary files
+*.gguf
+*.pth
+*.pkl
+
+# Python
+__pycache__/
+*.pyc
+
+# Python Virtual Environments
+venv/
+env/
+.venv/
+.env/
+backend/venv/
+venv/
+.venv/
+backend/venv/
+# Python IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment files (keep variants ignored)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS generated files
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Build artifacts
+build/
+dist/
+
+# Node modules (already ignored, but ensure)
+node_modules/
+
+# Expo
+.expo/
+expo-build/
+web-build/
+
+# EAS
+eas-build-metadata.json
+
+# Android
+*.apk
+*.aab
+android/app/build/
+
+# iOS
+*.ipa
+ios/build/
+
+# Metro
+.metro-health-check*
+
+# Model/Binary files
+*.gguf
+*.pth
+*.pkl
+
+# Local test files
+test_*.py
+test_*.js
+test_*.json
+
+# Local Test Files
+test_health_summary.py
+test_image.png
+

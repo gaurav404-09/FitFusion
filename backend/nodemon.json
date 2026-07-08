@@ -1,0 +1,8 @@
+{
+  "execMap": {
+    "py": "python3"
+  },
+  "watch": ["*.py", "*.json"],
+  "ignore": ["node_modules/**"]
+}
+
