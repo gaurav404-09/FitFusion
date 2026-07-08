@@ -929,7 +929,7 @@ export default function HomeScreen({ navigation }) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, ...(Platform.OS === 'web' ? { overflowY: 'auto', height: '100vh' } : {}) },
+  container: { flex: 1, backgroundColor: COLORS.background },
   scroll: {
     paddingTop: Platform.OS === "ios" ? 60 : 40,
     flexGrow: 1,

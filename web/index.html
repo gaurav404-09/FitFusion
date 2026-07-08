@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>CampusTitan — FitFusion</title>
+    <!--
+      Override the default expo-reset styles.
+      The default template sets `body { overflow: hidden }` which prevents
+      page scrolling on web. We allow body/html to scroll naturally here,
+      and rely on React Native's <ScrollView> for in-component scrolling.
+    -->
+    <style id="expo-reset">
+      html {
+        height: 100%;
+        /* Allow the page to scroll on web */
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      body {
+        height: 100%;
+        margin: 0;
+        /* Allow browser-level scrolling — critical for React Navigation on web */
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      #root {
+        display: flex;
+        min-height: 100%;
+        flex: 1;
+        flex-direction: column;
+        /* Do NOT set overflow: hidden here */
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
