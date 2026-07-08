@@ -69,6 +69,17 @@ class SensorService {
     }
   }
 
+  async checkPermissions() {
+    try {
+      const result = await Pedometer.getPermissionsAsync();
+      this.permissionStatus = result.status;
+      return result;
+    } catch (error) {
+      console.error('[SensorService] checkPermissions Error:', error);
+      return { granted: false, status: 'undetermined' };
+    }
+  }
+
   async startTracking(callback) {
     const available = await this.checkAvailability();
     if (!available) {
