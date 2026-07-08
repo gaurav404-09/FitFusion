@@ -38,6 +38,17 @@ class ActivityTool:
             pass
         return client
 
+    def _ensure_user_exists(self, user_id: str) -> None:
+        """Upsert a minimal row in the users table so FK constraints pass."""
+        try:
+            self.supabase.table("users").upsert(
+                {"id": user_id},
+                on_conflict="id",
+                ignore_duplicates=True,
+            ).execute()
+        except Exception as e:
+            print(f"[ActivityTool] _ensure_user_exists warning: {e}")
+
     def execute(self, *, activity: Dict[str, Any], user_id: str, date: Optional[str] = None, user_jwt: Optional[str] = None) -> Dict[str, Any]:
         date = date or datetime.now().strftime("%Y-%m-%d")
 
@@ -55,6 +66,7 @@ class ActivityTool:
         
 
         supabase = self._get_supabase_for_user(user_jwt)
+        self._ensure_user_exists(user_id)
         inserted = supabase.table("activities").insert(payload).execute()
         inserted_rows = inserted.data or []
 
