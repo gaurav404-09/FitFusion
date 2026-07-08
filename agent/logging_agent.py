@@ -171,7 +171,7 @@ class IntentParser:
     """Intent Parser - Extracts structured data from natural language input"""
     
     def __init__(self):
-        self.cohere_api_key = os.environ.get("COHERE_API_KEY")
+        self.cohere_api_key = os.environ.get("COHERE_API_KEY") or os.environ.get("EXPO_PUBLIC_COHERE_API_KEY")
         self._co = ClientV2(api_key=self.cohere_api_key) if self.cohere_api_key else None
     
     def parse(self, query: str) -> Dict[str, Any]:
@@ -324,9 +324,9 @@ class NutritionLoggingTool:
     """Logs food intake to Supabase using LLM-estimated macros"""
     
     def __init__(self):
-        self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        self.cohere_api_key = os.environ.get("COHERE_API_KEY")
+        self.supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("EXPO_PUBLIC_SUPABASE_URL")
+        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY")
+        self.cohere_api_key = os.environ.get("COHERE_API_KEY") or os.environ.get("EXPO_PUBLIC_COHERE_API_KEY")
         self._co = ClientV2(api_key=self.cohere_api_key) if self.cohere_api_key else None
     
     def execute(self, meal_data: Dict, user_id: str, date: str = None) -> Dict:
@@ -503,8 +503,8 @@ class ActivityLoggingTool:
     """Logs physical activity to Supabase with calorie estimation"""
     
     def __init__(self):
-        self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        self.supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("EXPO_PUBLIC_SUPABASE_URL")
+        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY")
     
     def execute(self, activity_data: Dict, user_id: str, date: str = None) -> Dict:
         """Execute activity logging"""

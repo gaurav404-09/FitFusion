@@ -30,6 +30,11 @@ elif os.path.exists("../.env"):
     load_dotenv("../.env")
 
 from cohere import ClientV2
+from typing import Optional
+
+def _get_env(key: str) -> Optional[str]:
+    return os.environ.get(key) or os.environ.get(f"EXPO_PUBLIC_{key}")
+
 try:
     from logging_agent import process_logging_query
 except ImportError:
@@ -239,8 +244,8 @@ class UserStatsTool(BaseTool):
     required_params = ["user_id"]
 
     def __init__(self):
-        self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        self.supabase_url = _get_env("SUPABASE_URL")
+        self.supabase_key = _get_env("SUPABASE_SERVICE_ROLE_KEY")
 
     def execute(self, params: Dict[str, Any], user_id: str) -> ToolResult:
         try:
@@ -328,8 +333,8 @@ class NutritionTool(BaseTool):
     required_params = ["user_id"]
     
     def __init__(self):
-        self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        self.supabase_url = _get_env("SUPABASE_URL")
+        self.supabase_key = _get_env("SUPABASE_SERVICE_ROLE_KEY")
 
     def _build_headers(self, params: Dict[str, Any]) -> Dict[str, str]:
         user_jwt = params.get("user_jwt") if isinstance(params, dict) else None
@@ -432,8 +437,8 @@ class ActivityTool(BaseTool):
     required_params = ["user_id"]
     
     def __init__(self):
-        self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        self.supabase_url = _get_env("SUPABASE_URL")
+        self.supabase_key = _get_env("SUPABASE_SERVICE_ROLE_KEY")
     
     def execute(self, params: Dict[str, Any], user_id: str) -> ToolResult:
         try:
@@ -516,8 +521,8 @@ class WellnessTool(BaseTool):
     required_params = ["user_id"]
     
     def __init__(self):
-        self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        self.supabase_url = _get_env("SUPABASE_URL")
+        self.supabase_key = _get_env("SUPABASE_SERVICE_ROLE_KEY")
     
     def execute(self, params: Dict[str, Any], user_id: str) -> ToolResult:
         try:
@@ -675,8 +680,8 @@ class UserStatsTool(BaseTool):
     required_params = ["user_id"]
     
     def __init__(self):
-        self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        self.supabase_url = _get_env("SUPABASE_URL")
+        self.supabase_key = _get_env("SUPABASE_SERVICE_ROLE_KEY")
     
     def execute(self, params: Dict[str, Any], user_id: str) -> ToolResult:
         try:
@@ -745,7 +750,7 @@ class RecommendationTool(BaseTool):
     required_params = ["user_id"]
     
     def __init__(self):
-        self.cohere_api_key = os.environ.get("COHERE_API_KEY")
+        self.cohere_api_key = _get_env("COHERE_API_KEY")
         self._co = ClientV2(api_key=self.cohere_api_key) if self.cohere_api_key else None
     
     def execute(self, params: Dict[str, Any], user_id: str) -> ToolResult:
@@ -820,7 +825,7 @@ class RouterAgent:
     """
     
     def __init__(self):
-        self.cohere_api_key = os.environ.get("COHERE_API_KEY")
+        self.cohere_api_key = _get_env("COHERE_API_KEY")
         self._co = ClientV2(api_key=self.cohere_api_key) if self.cohere_api_key else None
         
         # Tool descriptions for routing
@@ -907,7 +912,7 @@ class ResponseGenerator:
     """
     
     def __init__(self):
-        self.cohere_api_key = os.environ.get("COHERE_API_KEY")
+        self.cohere_api_key = _get_env("COHERE_API_KEY")
         self._co = ClientV2(api_key=self.cohere_api_key) if self.cohere_api_key else None
     
     def generate_response(
