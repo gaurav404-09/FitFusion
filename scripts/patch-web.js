@@ -12,7 +12,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const indexPath = path.join(__dirname, 'dist', 'index.html');
+// Always resolve relative to the project root (parent of scripts/)
+const projectRoot = path.resolve(__dirname, '..');
+const indexPath = path.join(projectRoot, 'dist', 'index.html');
 
 if (!fs.existsSync(indexPath)) {
   console.error('patch-web.js: dist/index.html not found — run `expo export --platform web` first');
