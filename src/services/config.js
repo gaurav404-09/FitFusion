@@ -14,9 +14,16 @@ function getLanHost() {
     return LOCAL_IP;
 }
 
-const BASE_URL = Platform.OS === 'web'
-    ? 'http://localhost:5001/api'
-    : `http://${getLanHost()}:5001/api`;
+const getBaseUrl = () => {
+    if (process.env.EXPO_PUBLIC_BACKEND_URL) {
+        return `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
+    }
+    return Platform.OS === 'web'
+        ? 'http://localhost:5001/api'
+        : `http://${getLanHost()}:5001/api`;
+};
+
+const BASE_URL = getBaseUrl();
 
 export default {
     BASE_URL,
