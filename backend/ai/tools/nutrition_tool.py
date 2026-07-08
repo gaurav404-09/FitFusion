@@ -88,6 +88,7 @@ class NutritionTool:
                 "id": user_id,
                 "email": email,
                 "name": name,
+                "college": "Not set",
                 "role": "student",
             }).execute()
             print(f"[NutritionTool] Created missing user row for {user_id}")
