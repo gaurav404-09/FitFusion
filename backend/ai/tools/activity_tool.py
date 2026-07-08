@@ -38,15 +38,16 @@ class ActivityTool:
             pass
         return client
 
-    def _ensure_user_exists(self, user_id: str) -> None:
+    def _ensure_user_exists(self, user_id: str, user_jwt: Optional[str] = None) -> None:
         """Ensure a row exists in public.users for this auth user."""
         try:
-            # Check if the row already exists (fast path)
-            result = self.supabase.table("users").select("id").eq("id", user_id).execute()
+            # Use user-specific client if available to leverage RLS insert policies
+            supabase = self._get_supabase_for_user(user_jwt)
+            result = supabase.table("users").select("id").eq("id", user_id).execute()
             if result.data and len(result.data) > 0:
                 return
 
-            # Row is missing — try to fetch data from Supabase Auth admin API
+            # Row is missing — try to fetch data from Supabase Auth admin API (needs service role)
             email = f"{user_id[:8]}@fitfusion.app"
             name = user_id[:8]
             try:
@@ -58,7 +59,7 @@ class ActivityTool:
             except Exception as ae:
                 print(f"[ActivityTool] auth.admin.get_user_by_id failed: {ae}")
 
-            self.supabase.table("users").insert({
+            supabase.table("users").insert({
                 "id": user_id,
                 "email": email,
                 "name": name,
@@ -86,7 +87,7 @@ class ActivityTool:
         
 
         supabase = self._get_supabase_for_user(user_jwt)
-        self._ensure_user_exists(user_id)
+        self._ensure_user_exists(user_id, user_jwt)
         inserted = supabase.table("activities").insert(payload).execute()
         inserted_rows = inserted.data or []
 
