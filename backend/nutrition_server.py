@@ -37,49 +37,86 @@ CORS(app)
 UPLOAD_FOLDER = tempfile.gettempdir()
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-PYTHON_AGENT_URL = os.getenv('PYTHON_AGENT_URL', 'http://127.0.0.1:5002')
+# ─────────────────────────────────────────────
+# Agent – load directly in-process (no subprocess)
+# ─────────────────────────────────────────────
+agent_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'agent')
+if agent_dir not in sys.path:
+    sys.path.insert(0, agent_dir)
 
-def _forward_to_agent(method, path, *, json_body=None, params=None, headers=None, timeout=30):
-    url = urljoin(PYTHON_AGENT_URL.rstrip('/') + '/', path.lstrip('/'))
-    f_headers = {}
-    if headers:
-        f_headers.update(headers)
-    auth = request.headers.get('Authorization') or request.headers.get('authorization')
-    if auth:
-        f_headers['Authorization'] = auth
-    try:
-        resp = http_requests.request(
-            method,
-            url,
-            json=json_body,
-            params=params,
-            headers=f_headers,
-            timeout=timeout,
-        )
+_agent_module = None
+_router_module = None
+
+def _get_agent_module():
+    """Lazily import the agent so startup isn't blocked if libs are missing."""
+    global _agent_module
+    if _agent_module is None:
         try:
-            data = resp.json()
-            return jsonify(data), resp.status_code
-        except Exception:
-            return resp.text, resp.status_code
-    except Exception as e:
-        return jsonify({'success': False, 'error': 'Python agent unavailable', 'message': str(e)}), 503
+            import langgraph_agent as _m
+            _agent_module = _m
+            print('[Agent] langgraph_agent imported successfully')
+        except Exception as e:
+            print(f'[Agent] Failed to import langgraph_agent: {e}')
+    return _agent_module
+
+def _get_router_module():
+    global _router_module
+    if _router_module is None:
+        try:
+            from ai.router_agent import process_user_prompt as _fn
+            _router_module = _fn
+            print('[Agent] router_agent imported successfully')
+        except Exception as e:
+            print(f'[Agent] Failed to import router_agent: {e}')
+    return _router_module
 
 
 @app.route('/api/agent/health', methods=['GET'])
 def agent_health_proxy():
-    return _forward_to_agent('GET', '/health', timeout=10)
+    mod = _get_agent_module()
+    if mod is None:
+        return jsonify({'status': 'unavailable', 'service': 'CampusTitan Agent API'}), 503
+    return jsonify({'status': 'healthy', 'service': 'CampusTitan Agent API'})
 
 
 @app.route('/api/agent/query', methods=['POST'])
 def agent_query_proxy():
     data = request.get_json() or {}
-    return _forward_to_agent('POST', '/agent/query', json_body=data, timeout=60)
+    mod = _get_agent_module()
+    if mod is None:
+        return jsonify({'success': False, 'error': 'Agent module not available'}), 503
+    try:
+        query = data.get('query')
+        user_id = data.get('user_id')
+        user_context = data.get('user_context', {})
+        if not query or not user_id:
+            return jsonify({'success': False, 'error': 'query and user_id required'}), 400
+        result = mod.handle_agent_request(query, user_id, user_context)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/agent/log', methods=['POST'])
 def agent_log_proxy():
     data = request.get_json() or {}
-    return _forward_to_agent('POST', '/agent/log', json_body=data, timeout=60)
+    fn = _get_router_module()
+    if fn is None:
+        return jsonify({'success': False, 'error': 'Router agent not available'}), 503
+    try:
+        query = data.get('query')
+        user_id = data.get('user_id')
+        date = data.get('date')
+        auth_header = request.headers.get('Authorization') or request.headers.get('authorization')
+        user_jwt = None
+        if auth_header and auth_header.startswith('Bearer '):
+            user_jwt = auth_header.split(' ', 1)[1]
+        if not query or not user_id:
+            return jsonify({'success': False, 'error': 'query and user_id required'}), 400
+        result = fn(query=query, user_id=user_id, date=date, user_jwt=user_jwt)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/agent/quick', methods=['GET'])
@@ -87,7 +124,26 @@ def agent_quick_proxy():
     user_id = request.args.get('user_id')
     if not user_id:
         return jsonify({'success': False, 'error': 'user_id is required'}), 400
-    return _forward_to_agent('GET', '/agent/quick', params={'user_id': user_id}, timeout=20)
+    mod = _get_agent_module()
+    if mod is None:
+        return jsonify({'success': False, 'error': 'Agent not available'}), 503
+    try:
+        agent_instance = mod.CampusTitanAgent()
+        nutrition = agent_instance.tools['nutrition'].execute({'user_id': user_id, 'protein_goal': 60}, user_id)
+        activity = agent_instance.tools['activity'].execute({'user_id': user_id}, user_id)
+        wellness = agent_instance.tools['wellness'].execute({'user_id': user_id}, user_id)
+        return jsonify({
+            'success': True,
+            'data': {
+                'protein': {'current': nutrition.data.get('totals', {}).get('protein', 0), 'goal': 60},
+                'activity': {'minutes': activity.data.get('totals', {}).get('total_minutes', 0), 'calories': activity.data.get('totals', {}).get('total_calories', 0)},
+                'sleep': {'hours': wellness.data.get('averages', {}).get('sleep_hours', 0)},
+                'stress': {'level': wellness.data.get('averages', {}).get('stress_level', 5)}
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/nutrition/analyze', methods=['POST'])
 def analyze_nutrition():
