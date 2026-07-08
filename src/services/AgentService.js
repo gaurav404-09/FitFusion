@@ -54,7 +54,7 @@ export async function askAgent(query, userId, userContext = {}) {
     console.log("[AgentService] askAgent URL:", requestUrl);
 
     const response = await axios.post(requestUrl, payload, {
-      timeout: 30000,
+      timeout: 90000,  // 90s — Render free tier can take 50-60s on cold start
       validateStatus: () => true,
       headers: {
         "Content-Type": "application/json",
@@ -99,7 +99,9 @@ export async function askAgent(query, userId, userContext = {}) {
     return {
       success: false,
       error: error.message,
-      answer: "Sorry, I could not process your request right now.",
+      answer: error.code === 'ECONNABORTED'
+        ? "The server is waking up (cold start). Please try again in a few seconds!"
+        : "Sorry, I could not process your request right now.",
     };
   }
 }

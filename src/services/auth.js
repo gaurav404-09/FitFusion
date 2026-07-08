@@ -128,11 +128,11 @@ class AuthService {
 
       const user = session.user;
 
-      const { data: profile, error } = await supabase
+      const { data: profile } = await supabase
         .from("users")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profile) {
         return { ...user, ...profile };
