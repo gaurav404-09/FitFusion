@@ -208,6 +208,7 @@ class AgentResponse:
     confidence: float
     data: Dict[str, Any]
     sources: List[str]
+    reasoning_steps: List[str] = field(default_factory=list)
 
 @dataclass
 class ToolResult:
@@ -922,9 +923,9 @@ class ResponseGenerator:
         user_context: Dict[str, Any]
     ) -> AgentResponse:
         """
-        Generates a natural language response from tool results
+        Generates a natural language response from tool results.
+        Uses conversation_history from user_context for memory-aware replies.
         """
-        # Build context from tool results
         context_parts = []
         data_summary = {}
         
@@ -934,15 +935,11 @@ class ResponseGenerator:
                 data_summary[result.tool_name] = result.data
         
         context = "\n\n".join(context_parts)
-        
-        # Get the primary tool result for simpler queries
         primary_data = tool_results[0].data if tool_results else {}
         user_stats_data = data_summary.get("user_stats")
         
-        # Generate response based on query type
         query_lower = query.lower()
         
-        # Handle specific common queries directly for speed
         if user_stats_data and ("protein" in query_lower or "goal" in query_lower or "weight" in query_lower or "calorie" in query_lower or "burn" in query_lower or "plan" in query_lower or "how can i" in query_lower):
             answer = self._generate_personalized_from_user_stats(user_stats_data, query)
         elif "protein" in query_lower:
@@ -956,23 +953,21 @@ class ResponseGenerator:
         elif "wellness" in query_lower or "score" in query_lower:
             answer = self._generate_wellness_response(primary_data, query)
         else:
-            # Use LLM for complex queries
             answer = self._generate_llm_response(query, context, user_context)
         
-        # Determine confidence
         confidence = 0.3
         if tool_results:
             confidence = 0.9 if tool_results[0].success else 0.5
             
         tool_used = tool_results[0].tool_name if tool_results else "none"
-        sources = ["Supabase Database", "ML Model" if tool_results and any("prediction" in r.tool_name for r in tool_results) else "User Input"]
+        sources = ["Supabase Database", "User Input"]
         
         return AgentResponse(
             answer=answer,
             tool_used=tool_used,
             confidence=confidence,
             data=data_summary,
-            sources=sources
+            sources=sources,
         )
     
     def _generate_protein_response(self, data: Dict, query: str) -> str:
@@ -1046,31 +1041,34 @@ class ResponseGenerator:
             return f"⚠️ Your predicted wellness is {prediction}/100. Let's work on self-care!"
     
     def _generate_llm_response(self, query: str, context: str, user_context: Dict) -> str:
-        """Generate response using Cohere for complex queries"""
+        """Generate response using Cohere for complex queries, with conversation memory."""
         if not self._co:
             return "LLM_ERROR: Missing COHERE_API_KEY"
 
-        prompt = f"""
-You are Titan AI, a friendly campus health coach.
+        # Build conversation history for the LLM
+        history = user_context.get('conversation_history', [])
+        chat_messages = []
+        for h in history[-8:]:  # last 8 turns for context
+            role = 'user' if h.get('role') == 'USER' else 'assistant'
+            chat_messages.append({'role': role, 'content': h.get('message', '')})
 
-User Question: {query}
+        system_prompt = f"""You are Titan AI, a friendly campus health coach.
 
 Data Context:
 {context}
 
 User Profile:
 - Name: {user_context.get('name', 'Student')}
-- College: {user_context.get('college', 'Campus')}
 
-Answer the user's question based on the data above.
-Be friendly, concise, and actionable.
-Keep it under 2 sentences.
-""".strip()
+Answer the user's question based on the data. Be friendly, concise (max 2 sentences), and actionable.""".strip()
+
+        # Combine system context with user query
+        full_messages = chat_messages + [{'role': 'user', 'content': f"{system_prompt}\n\nUser: {query}"}]
 
         try:
             resp = self._co.chat(
                 model="command-r-plus-08-2024",
-                messages=[{"role": "user", "content": prompt}],
+                messages=full_messages,
                 temperature=0.2,
                 max_tokens=300,
             )
@@ -1176,69 +1174,70 @@ class CampusTitanAgent:
     
     def process_query(self, query: str, user_id: str, user_context: Dict = None) -> AgentResponse:
         """
-        Main entry point for processing user queries
+        Main entry point — routes query → tool → response.
+        Collects reasoning_steps at each stage for transparent UI display.
         """
+        reasoning_steps = []
         print(f"\n🤖 Processing query: {query}")
         
         # Step 1: Route the query
-        print("📡 Routing query...")
+        reasoning_steps.append(f"Analysing intent: \"{query[:60]}{'...' if len(query)>60 else ''}\"")
         routing = self.router.classify_query(query)
         primary_tool_name = routing["primary_tool"]
-        print(f"   → Primary tool: {primary_tool_name}")
-        print(f"   → Confidence: {routing.get('confidence', 0.5)}")
+        reasoning_steps.append(f"Classified as: {primary_tool_name} (confidence {routing.get('confidence', 0.5):.0%})")
         
         # Route to Logging Agent if it's a logging task
         if primary_tool_name in ["Food Logging", "Activity Logging"]:
-            print(f"   → Forwarding to Logging Agent...")
+            reasoning_steps.append("Forwarding to Logging Agent for database write")
             try:
                 from logging_agent import process_logging_query
                 res = process_logging_query(query, user_id, params.get("date") if 'params' in locals() else None)
                 if res.get("success"):
-                    return AgentResponse(
+                    response = AgentResponse(
                         answer=res.get("answer", "Logged successfully!"),
                         tool_used=primary_tool_name,
                         confidence=0.9,
                         data=res.get("data", {}),
-                        sources=["Logging Backend"]
+                        sources=["Logging Backend"],
                     )
+                    response.reasoning_steps = reasoning_steps + ["Database write completed"]
+                    return response
                 else:
-                    return AgentResponse(
+                    response = AgentResponse(
                         answer=res.get("error", "Failed to log."),
                         tool_used="none",
                         confidence=0.1,
                         data={},
-                        sources=[]
+                        sources=[],
                     )
+                    response.reasoning_steps = reasoning_steps + [f"Logging error: {res.get('error')}"]
+                    return response
             except Exception as e:
-                print(f"Logging Agent Error: {e}")
-                return AgentResponse(
+                response = AgentResponse(
                     answer="Logging Agent Error: " + str(e),
                     tool_used="none",
                     confidence=0.1,
                     data={},
-                    sources=[]
+                    sources=[],
                 )
+                response.reasoning_steps = reasoning_steps + [f"Exception: {e}"]
+                return response
         
-        # For querying Database/Analysis, ALWAYS use user_stats first based on the prompt instructions
+        # For analysis queries, use user_stats first
         if primary_tool_name in ["Nutrition Analysis", "Workout Recommendation", "Goal Progress Query"]:
             primary_tool_name = "user_stats"
+            reasoning_steps.append("Mapped to user_stats tool for personalised context")
             
         # Step 2: Execute tools
-        print("🔧 Executing tools...")
         tool_results = []
-        
-        # Execute primary tool
         if primary_tool_name in self.tools:
             params = {
                 "user_id": user_id,
                 "date": datetime.now().strftime("%Y-%m-%d"),
                 "time_range": (routing.get("extracted_params") or {}).get("time_range", "day")
             }
-
             if isinstance(user_context, dict) and user_context.get("user_jwt"):
                 params["user_jwt"] = user_context.get("user_jwt")
-            
-            # Add user context to params
             if user_context:
                 params.update({
                     "age": user_context.get("age", 22),
@@ -1247,31 +1246,36 @@ class CampusTitanAgent:
                     "protein_goal": user_context.get("protein_goal", 60),
                     "weekly_goal": user_context.get("weekly_goal", 150)
                 })
-            
             result = self.tools[primary_tool_name].execute(params, user_id)
             tool_results.append(result)
-            print(f"   → {primary_tool_name}: {'✓' if result.success else '✗'}")
+            status = '✓' if result.success else '✗'
+            reasoning_steps.append(f"Executed {primary_tool_name} tool {status}")
+            if result.success and result.data:
+                # Surface a brief data summary in the reasoning trace
+                today_stats = result.data.get('today_stats', {})
+                if today_stats:
+                    reasoning_steps.append(
+                        f"Found: {today_stats.get('calories_consumed', 0):.0f} kcal consumed, "
+                        f"{today_stats.get('protein_consumed', 0):.0f}g protein, "
+                        f"{today_stats.get('calories_burned', 0):.0f} kcal burned today"
+                    )
         
-        # Execute secondary tools if needed
         for tool_name in routing.get("secondary_tools", []):
             if tool_name in self.tools:
                 params = {"user_id": user_id}
                 if user_context:
                     params.update(user_context)
-                
                 result = self.tools[tool_name].execute(params, user_id)
                 tool_results.append(result)
         
         # Step 3: Generate response
-        print("✨ Generating response...")
+        reasoning_steps.append("Generating natural language response")
         response = self.response_generator.generate_response(
             query=query,
             tool_results=tool_results,
             user_context=user_context or {}
         )
-        
-        print(f"   → Answer: {response.answer[:100]}...")
-        
+        response.reasoning_steps = reasoning_steps
         return response
 
 # ==========================================
@@ -1280,14 +1284,11 @@ class CampusTitanAgent:
 
 def handle_agent_request(query: str, user_id: str, user_context: Dict = None) -> Dict:
     """
-    API handler function for the agent
-    Returns JSON-serializable response
+    API handler — returns JSON-serialisable response including reasoning_steps.
     """
     agent = CampusTitanAgent()
-    
     try:
         response = agent.process_query(query, user_id, user_context)
-        
         return {
             "success": True,
             "answer": response.answer,
@@ -1295,9 +1296,9 @@ def handle_agent_request(query: str, user_id: str, user_context: Dict = None) ->
             "confidence": response.confidence,
             "data": response.data,
             "sources": response.sources,
+            "reasoning_steps": getattr(response, 'reasoning_steps', []),
             "timestamp": datetime.now().isoformat()
         }
-        
     except Exception as e:
         import traceback
         return {
@@ -1305,6 +1306,7 @@ def handle_agent_request(query: str, user_id: str, user_context: Dict = None) ->
             "error": str(e),
             "traceback": traceback.format_exc(),
             "answer": "Sorry, I encountered an error. Please try again.",
+            "reasoning_steps": [],
             "timestamp": datetime.now().isoformat()
         }
 

@@ -38,6 +38,8 @@ import {
   hasUsagePermissionSafely,
   requestUsagePermissionSafely,
 } from "../../services/screenTimeMapper";
+import NudgeBanner from "../../components/NudgeBanner";
+
 
 const { width: W } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -454,6 +456,15 @@ export default function HomeScreen({ navigation }) {
             </View>
           </LinearGradient>
         </TouchableOpacity>
+
+        {/* Titan AI Proactive Health Nudge */}
+        <NudgeBanner
+          userId={user?.id}
+          onChatOpen={() =>
+            navigation.navigate("MainApp", { screen: "Home", params: { screen: "AIChat" } })
+          }
+        />
+
 
         {/* ─── AI WELLNESS COACH ─── */}
         <AIWellnessCoach navigation={navigation} />

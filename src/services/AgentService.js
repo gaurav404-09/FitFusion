@@ -1,19 +1,16 @@
 /**
- * Agent Service - Connects Mobile App to Python LangGraph Agent
- * Provides natural language query processing
+ * AgentService — Connects Mobile App to Python LangGraph Agent
  *
- * IMPORTANT: Routes through Node.js backend (/api/agent) which forwards
- * to Python LangGraph Agent. This ensures proper network handling for
- * Android devices and emulators.
+ * Provides natural language query processing with:
+ * - Persistent conversation history (passed to backend on every request)
+ * - Proactive nudge fetching (called on app open)
+ * - Goal planning (compound multi-step agent task)
  */
 
-import axios from "axios";
-import config from "./config";
-import { supabase } from "./supabase";
+import axios from 'axios';
+import config from './config';
+import { supabase } from './supabase';
 
-// Use Node backend as the single network entrypoint.
-// This avoids calling localhost from a physical device and lets the backend
-// forward requests to the Python agent.
 const BASE_URL = config.BASE_URL;
 
 async function _getAuthHeaders() {
@@ -27,89 +24,125 @@ async function _getAuthHeaders() {
 }
 
 /**
- * Process a natural language query through the AI agent
- * @param {string} query - User's question (e.g., "Did I eat enough protein today?")
+ * Process a natural language query through the AI agent.
+ * Passes conversation history so the agent has memory of prior turns.
+ *
+ * @param {string} query - User's question
  * @param {string} userId - Current user's ID
- * @param {object} userContext - Additional user context (age, goals, etc.)
- * @returns {Promise<object>} Agent response
+ * @param {object} userContext - Age, goals, etc.
+ * @param {Array}  conversationHistory - [{role, message}] from ConversationService.buildHistoryPayload()
  */
-export async function askAgent(query, userId, userContext = {}) {
+export async function askAgent(query, userId, userContext = {}, conversationHistory = []) {
   try {
     const authHeaders = await _getAuthHeaders();
-    const path = "/agent/query";
-    const requestUrl = `${BASE_URL}${path}`;
     const payload = {
       query,
       user_id: userId,
+      conversation_history: conversationHistory,
       user_context: {
-        name: userContext.name || "Student",
+        name: userContext.name || 'Student',
         age: userContext.age || 22,
-        gender: userContext.gender || "male",
+        gender: userContext.gender || 'male',
         protein_goal: userContext.proteinGoal || 60,
         weekly_goal: userContext.weeklyGoal || 150,
         ...userContext,
       },
     };
 
-    console.log("[AgentService] askAgent URL:", requestUrl);
-
-    const response = await axios.post(requestUrl, payload, {
-      timeout: 90000,  // 90s — Render free tier can take 50-60s on cold start
+    const response = await axios.post(`${BASE_URL}/agent/query`, payload, {
+      timeout: 90000,
       validateStatus: () => true,
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders,
-      },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
     });
 
     if (response.status >= 200 && response.status < 300) {
       return response.data;
     }
 
-    console.error("[AgentService] askAgent non-2xx status:", response.status);
-    console.error("[AgentService] askAgent response data:", response.data);
-
     const message =
       response.status === 404
-        ? "Agent endpoint not found (404). Check backend route /api/agent/query and BASE_URL."
-        : "Sorry, I could not process your request right now.";
+        ? 'Agent endpoint not found (404). Check backend route /api/agent/query.'
+        : 'Sorry, I could not process your request right now.';
 
-    return {
-      success: false,
-      status: response.status,
-      error: `Request failed with status ${response.status}`,
-      answer: message,
-      data: response.data,
-    };
+    return { success: false, status: response.status, answer: message };
   } catch (error) {
-    console.error("Agent query error:", error.message);
-    if (error?.response) {
-      console.error("Agent query status:", error.response.status);
-      console.error("Agent query data:", JSON.stringify(error.response.data));
-      console.error(
-        "[AgentService] askAgent request URL (axios):",
-        error.config?.baseURL
-          ? `${error.config.baseURL}${error.config.url || ""}`
-          : error.config?.url,
-      );
-    } else {
-      console.error("Error details:", error);
-      console.error("[AgentService] askAgent request URL:", `${BASE_URL}/agent/query`);
-    }
     return {
       success: false,
       error: error.message,
-      answer: error.code === 'ECONNABORTED'
-        ? "The server is waking up (cold start). Please try again in a few seconds!"
-        : "Sorry, I could not process your request right now.",
+      answer:
+        error.code === 'ECONNABORTED'
+          ? 'The server is waking up (cold start). Please try again in a few seconds!'
+          : 'Sorry, I could not process your request right now.',
     };
   }
 }
 
 /**
- * Get quick stats summary for the dashboard
- * @param {string} userId - Current user's ID
- * @returns {Promise<object>} Quick stats
+ * Fetch proactive nudges — the agent checks the last 7 days of data
+ * and surfaces 1-2 personalised health insights WITHOUT the user asking.
+ * Called on app open to make the AI feel proactive, not reactive.
+ */
+export async function fetchNudges(userId) {
+  if (!userId) return [];
+  try {
+    const authHeaders = await _getAuthHeaders();
+    const response = await axios.post(
+      `${BASE_URL}/agent/nudge`,
+      { user_id: userId },
+      { timeout: 20000, headers: { 'Content-Type': 'application/json', ...authHeaders } }
+    );
+    if (response.data?.success && Array.isArray(response.data.nudges)) {
+      return response.data.nudges;
+    }
+    return [];
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
+ * Generate a personalised goal plan using the agent.
+ * This is a compound multi-step task: agent fetches current stats,
+ * computes deficit/surplus, then generates a week-by-week plan.
+ *
+ * @param {string} userId
+ * @param {string} goalDescription - e.g. "I want to lose 5kg in 2 months"
+ * @param {object} userContext
+ */
+export async function generateGoalPlan(userId, goalDescription, userContext = {}) {
+  try {
+    const authHeaders = await _getAuthHeaders();
+    const response = await axios.post(
+      `${BASE_URL}/agent/goal-plan`,
+      { user_id: userId, goal: goalDescription, user_context: userContext },
+      { timeout: 60000, headers: { 'Content-Type': 'application/json', ...authHeaders } }
+    );
+    if (response.data?.success) return response.data;
+    return { success: false, answer: 'Could not generate a plan right now. Try again.' };
+  } catch (err) {
+    return { success: false, answer: 'Could not reach the server. Try again.' };
+  }
+}
+
+/**
+ * Fetch the weekly health report (compound autonomous agent task).
+ */
+export async function fetchWeeklyReport(userId) {
+  try {
+    const authHeaders = await _getAuthHeaders();
+    const response = await axios.post(
+      `${BASE_URL}/agent/weekly-report`,
+      { user_id: userId },
+      { timeout: 30000, headers: { 'Content-Type': 'application/json', ...authHeaders } }
+    );
+    return response.data?.success ? response.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get quick stats summary for the dashboard.
  */
 export async function getQuickStats(userId) {
   try {
@@ -117,113 +150,74 @@ export async function getQuickStats(userId) {
     const response = await axios.get(`${BASE_URL}/agent/quick`, {
       params: { user_id: userId },
       timeout: 10000,
-      headers: {
-        ...authHeaders,
-      },
+      headers: { ...authHeaders },
     });
-
     return response.data;
   } catch (error) {
-    console.error("Quick stats error:", error.message);
-    return {
-      success: false,
-      error: error.message,
-    };
+    return { success: false, error: error.message };
   }
 }
 
 /**
- * Check if the agent service is available
- * @returns {Promise<boolean>}
+ * Check if the agent service is available.
  */
 export async function checkAgentHealth() {
   try {
-    const response = await axios.get(`${BASE_URL}/agent/health`, {
-      timeout: 5000,
-    });
-    return response.data?.status === "healthy";
-  } catch (error) {
+    const response = await axios.get(`${BASE_URL}/agent/health`, { timeout: 5000 });
+    return response.data?.status === 'healthy';
+  } catch {
     return false;
   }
 }
 
 /**
- * Example queries the agent can handle
- */
-export const EXAMPLE_QUERIES = [
-  "Did I eat enough protein today?",
-  "How much did I exercise?",
-  "How did I sleep last night?",
-  "What's my stress level?",
-  "What's my wellness score?",
-  "What should I do to improve?",
-  "Am I hitting my daily goals?",
-  "How many calories did I eat?",
-  "What's my activity for this week?",
-  "Should I be worried about my sleep?",
-];
-
-/**
- * Natural Language Logging Examples
- * These queries will trigger the logging functionality
- */
-export const LOGGING_QUERIES = [
-  "I played badminton for 3 hours",
-  "I ate 2 eggs and a banana",
-  "I played badminton for 3 hours and had three chapatis in lunch",
-  "Went to gym for 1 hour",
-  "Had lunch - 2 chapatis with dal",
-  "Played cricket for 2 hours",
-  "Ate breakfast - 2 idlis",
-  "Went running for 30 minutes",
-  "Had dinner - rice and chicken",
-  "Played basketball for 1 hour",
-];
-
-/**
- * Log food or activity using natural language
- * @param {string} query - Natural language input
- * @param {string} userId - Current user's ID
- * @param {string} date - Optional date in YYYY-MM-DD format
- * @returns {Promise<object>} Logging result
+ * Log food or activity using natural language.
  */
 export async function logToAgent(query, userId, date = null) {
   try {
     const authHeaders = await _getAuthHeaders();
     const response = await axios.post(
       `${BASE_URL}/agent/log`,
-      {
-        query,
-        user_id: userId,
-        date: date || new Date().toISOString().split("T")[0],
-      },
-      {
-        timeout: 15000,
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-      },
+      { query, user_id: userId, date: date || new Date().toISOString().split('T')[0] },
+      { timeout: 15000, headers: { 'Content-Type': 'application/json', ...authHeaders } }
     );
     return response.data;
   } catch (error) {
-    console.error("Agent log error:", error.message);
-    if (error?.response) {
-      console.error("Agent log status:", error.response.status);
-      console.error("Agent log data:", JSON.stringify(error.response.data));
-    } else {
-      console.error("Error details:", error);
-    }
-    return {
-      success: false,
-      error: error.message,
-      answer: "Sorry, I could not log your data right now.",
-    };
+    return { success: false, error: error.message, answer: 'Sorry, I could not log your data right now.' };
   }
 }
 
+export const EXAMPLE_QUERIES = [
+  'Did I eat enough protein today?',
+  'How much did I exercise?',
+  'How did I sleep last night?',
+  "What's my stress level?",
+  "What's my wellness score?",
+  'What should I do to improve?',
+  'Am I hitting my daily goals?',
+  'How many calories did I eat?',
+  "What's my activity for this week?",
+  'Should I be worried about my sleep?',
+];
+
+export const LOGGING_QUERIES = [
+  'I played badminton for 3 hours',
+  'I ate 2 eggs and a banana',
+  'I played badminton for 3 hours and had three chapatis in lunch',
+  'Went to gym for 1 hour',
+  'Had lunch - 2 chapatis with dal',
+  'Played cricket for 2 hours',
+  'Ate breakfast - 2 idlis',
+  'Went running for 30 minutes',
+  'Had dinner - rice and chicken',
+  'Played basketball for 1 hour',
+];
+
 export default {
   askAgent,
+  fetchNudges,
+  generateGoalPlan,
+  fetchWeeklyReport,
   getQuickStats,
   checkAgentHealth,
   logToAgent,

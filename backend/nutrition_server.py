@@ -89,12 +89,16 @@ def agent_query_proxy():
         query = data.get('query')
         user_id = data.get('user_id')
         user_context = data.get('user_context', {})
+        conversation_history = data.get('conversation_history', [])  # persistent memory
         if not query or not user_id:
             return jsonify({'success': False, 'error': 'query and user_id required'}), 400
+        # Inject conversation history into user_context so the agent can use it
+        user_context['conversation_history'] = conversation_history
         result = mod.handle_agent_request(query, user_id, user_context)
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 @app.route('/api/agent/log', methods=['POST'])
@@ -720,6 +724,297 @@ def health_check():
         'status': 'healthy',
         'nutrition_score_available': nutrition_score is not None,
     })
+
+
+# ============================================
+# Proactive Nudge Endpoint
+# Agent checks last 7 days of data and surfaces
+# insights without the user asking.
+# ============================================
+
+@app.route('/api/agent/nudge', methods=['POST'])
+def agent_nudge():
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+    cohere_key = os.getenv('COHERE_API_KEY') or os.getenv('EXPO_PUBLIC_COHERE_API_KEY')
+    supabase_url = os.getenv('EXPO_PUBLIC_SUPABASE_URL') or os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    sb_headers = {'apikey': supabase_key, 'Authorization': f'Bearer {supabase_key}'}
+
+    try:
+        from datetime import date, timedelta
+        today = date.today().isoformat()
+        week_ago = (date.today() - timedelta(days=7)).isoformat()
+
+        food_resp = http_requests.get(
+            f"{supabase_url}/rest/v1/food_logs",
+            headers=sb_headers,
+            params={'user_id': f'eq.{user_id}', 'date': f'gte.{week_ago}', 'select': 'calories,protein,date'},
+            timeout=8,
+        )
+        food_logs = food_resp.json() if food_resp.status_code == 200 else []
+
+        act_resp = http_requests.get(
+            f"{supabase_url}/rest/v1/activities",
+            headers=sb_headers,
+            params={'user_id': f'eq.{user_id}', 'date': f'gte.{week_ago}', 'select': 'duration,date'},
+            timeout=8,
+        )
+        activities = act_resp.json() if act_resp.status_code == 200 else []
+
+        today_cal = sum(f.get('calories', 0) for f in food_logs if f.get('date') == today)
+        today_protein = sum(f.get('protein', 0) for f in food_logs if f.get('date') == today)
+        week_active_min = sum(a.get('duration', 0) for a in activities)
+        logged_days = len(set(f.get('date') for f in food_logs))
+
+        context = (
+            f"Past 7 days: {logged_days}/7 days logged, {week_active_min} active minutes total. "
+            f"Today: {today_cal:.0f} kcal, {today_protein:.0f}g protein."
+        )
+
+        prompt = (
+            f"You are Titan AI, a campus health coach. Context: {context}\n"
+            "Generate exactly 2 short, warm, actionable nudges (no markdown, each on its own line)."
+        )
+
+        nudge_text = ''
+        if cohere_key:
+            try:
+                from cohere import ClientV2
+                co = ClientV2(api_key=cohere_key)
+                resp = co.chat(
+                    model='command-r-plus-08-2024',
+                    messages=[{'role': 'user', 'content': prompt}],
+                    temperature=0.7, max_tokens=150,
+                )
+                nudge_text = resp.message.content[0].text.strip()
+            except Exception as e:
+                print(f'[Nudge] Cohere: {e}')
+
+        nudges = [n.strip() for n in nudge_text.split('\n') if n.strip()][:2]
+        if not nudges:
+            nudges = [
+                'Try logging your meals today \u2014 even small entries help!',
+                'Aim for 30 minutes of movement today.',
+            ]
+        return jsonify({'success': True, 'nudges': nudges})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# Goal Planning Agent
+# Compound multi-step task: fetch current stats,
+# compute target, generate week-by-week plan.
+# ============================================
+
+@app.route('/api/agent/goal-plan', methods=['POST'])
+def agent_goal_plan():
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    goal = data.get('goal', '')
+    if not user_id or not goal:
+        return jsonify({'success': False, 'error': 'user_id and goal required'}), 400
+
+    cohere_key = os.getenv('COHERE_API_KEY') or os.getenv('EXPO_PUBLIC_COHERE_API_KEY')
+    supabase_url = os.getenv('EXPO_PUBLIC_SUPABASE_URL') or os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    sb_headers = {'apikey': supabase_key, 'Authorization': f'Bearer {supabase_key}'}
+
+    try:
+        from datetime import date, timedelta
+
+        # Step 1: Fetch user profile
+        user_resp = http_requests.get(
+            f"{supabase_url}/rest/v1/users",
+            headers=sb_headers,
+            params={'id': f'eq.{user_id}', 'select': 'weight,goal_weight,diet_type', 'limit': 1},
+            timeout=8,
+        )
+        user_row = (user_resp.json() or [{}])[0] if user_resp.status_code == 200 else {}
+
+        # Step 2: Fetch last 7 days food + activity
+        week_ago = (date.today() - timedelta(days=7)).isoformat()
+        food_resp = http_requests.get(
+            f"{supabase_url}/rest/v1/food_logs",
+            headers=sb_headers,
+            params={'user_id': f'eq.{user_id}', 'date': f'gte.{week_ago}', 'select': 'calories,protein'},
+            timeout=8,
+        )
+        food_logs = food_resp.json() if food_resp.status_code == 200 else []
+
+        act_resp = http_requests.get(
+            f"{supabase_url}/rest/v1/activities",
+            headers=sb_headers,
+            params={'user_id': f'eq.{user_id}', 'date': f'gte.{week_ago}', 'select': 'duration,calories_burned'},
+            timeout=8,
+        )
+        activities = act_resp.json() if act_resp.status_code == 200 else []
+
+        # Step 3: Compute averages
+        n_food_days = max(len(food_logs), 1)
+        avg_cal = sum(f.get('calories', 0) for f in food_logs) / n_food_days
+        avg_protein = sum(f.get('protein', 0) for f in food_logs) / n_food_days
+        avg_active_min = sum(a.get('duration', 0) for a in activities) / 7
+
+        weight = user_row.get('weight', 'unknown')
+        goal_weight = user_row.get('goal_weight', 'unknown')
+        diet_type = user_row.get('diet_type', 'any')
+
+        # Step 4: LLM plan generation
+        prompt = f"""You are Titan AI, a personalised health coach for college students.
+
+User goal: "{goal}"
+Current weight: {weight} kg  |  Target weight: {goal_weight} kg
+Diet preference: {diet_type}
+Last 7-day averages: {avg_cal:.0f} kcal/day, {avg_protein:.0f}g protein/day, {avg_active_min:.0f} active min/day
+
+Generate a structured 4-week plan. For each week provide:
+- Weekly calorie target
+- Key food focus (2 specific foods to prioritise)
+- Exercise target (days + type)
+- One actionable tip
+
+Be specific, realistic, and friendly. Format as plain text with Week 1, Week 2, Week 3, Week 4 headers."""
+
+        plan_text = ''
+        steps = [
+            f'Fetched profile: {weight}kg → {goal_weight}kg target',
+            f'Computed 7-day averages: {avg_cal:.0f} kcal, {avg_protein:.0f}g protein, {avg_active_min:.0f} min activity',
+            'Identified goal type and diet preference',
+            'Generating personalised 4-week plan with Cohere',
+        ]
+
+        if cohere_key:
+            try:
+                from cohere import ClientV2
+                co = ClientV2(api_key=cohere_key)
+                resp = co.chat(
+                    model='command-r-plus-08-2024',
+                    messages=[{'role': 'user', 'content': prompt}],
+                    temperature=0.5, max_tokens=600,
+                )
+                plan_text = resp.message.content[0].text.strip()
+                steps.append('Plan generated successfully')
+            except Exception as e:
+                print(f'[GoalPlan] Cohere: {e}')
+                steps.append(f'LLM error: {e}')
+
+        return jsonify({
+            'success': True,
+            'goal': goal,
+            'plan': plan_text or 'Could not generate plan. Please try again.',
+            'reasoning_steps': steps,
+            'context': {
+                'current_weight': weight,
+                'goal_weight': goal_weight,
+                'avg_calories': round(avg_cal),
+                'avg_protein': round(avg_protein, 1),
+                'avg_active_minutes': round(avg_active_min),
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# Weekly Health Report
+# Autonomous multi-tool compound task:
+# agent fetches data across 3 tables and generates
+# a structured weekly summary unprompted.
+# ============================================
+
+@app.route('/api/agent/weekly-report', methods=['POST'])
+def agent_weekly_report():
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'success': False, 'error': 'user_id required'}), 400
+
+    cohere_key = os.getenv('COHERE_API_KEY') or os.getenv('EXPO_PUBLIC_COHERE_API_KEY')
+    supabase_url = os.getenv('EXPO_PUBLIC_SUPABASE_URL') or os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    sb_headers = {'apikey': supabase_key, 'Authorization': f'Bearer {supabase_key}'}
+
+    try:
+        from datetime import date, timedelta
+        today = date.today().isoformat()
+        week_ago = (date.today() - timedelta(days=7)).isoformat()
+
+        food_resp = http_requests.get(
+            f"{supabase_url}/rest/v1/food_logs", headers=sb_headers,
+            params={'user_id': f'eq.{user_id}', 'date': f'gte.{week_ago}', 'select': '*'}, timeout=8,
+        )
+        food_logs = food_resp.json() if food_resp.status_code == 200 else []
+
+        act_resp = http_requests.get(
+            f"{supabase_url}/rest/v1/activities", headers=sb_headers,
+            params={'user_id': f'eq.{user_id}', 'date': f'gte.{week_ago}', 'select': '*'}, timeout=8,
+        )
+        activities = act_resp.json() if act_resp.status_code == 200 else []
+
+        total_cal = sum(f.get('calories', 0) for f in food_logs)
+        total_protein = sum(f.get('protein', 0) for f in food_logs)
+        total_carbs = sum(f.get('carbs', 0) for f in food_logs)
+        total_fat = sum(f.get('fat', 0) for f in food_logs)
+        total_active_min = sum(a.get('duration', 0) for a in activities)
+        total_burned = sum(a.get('calories_burned', 0) for a in activities)
+        active_days = len(set(a.get('date') for a in activities))
+        logged_days = len(set(f.get('date') for f in food_logs))
+
+        activity_types = {}
+        for a in activities:
+            t = a.get('type', 'other')
+            activity_types[t] = activity_types.get(t, 0) + 1
+        top_activity = max(activity_types, key=activity_types.get) if activity_types else 'None'
+
+        stats_summary = (
+            f"{logged_days} days logged, {total_cal:.0f} kcal total, "
+            f"{total_protein:.0f}g protein. Active {active_days} days, "
+            f"{total_active_min} minutes, {total_burned:.0f} kcal burned. Top: {top_activity}."
+        )
+
+        prompt = f"""You are Titan AI. Weekly summary: {stats_summary}
+Generate JSON only:
+{{"highlight": "...", "warning": "...", "recommendation": "...", "summary_line": "..."}}"""
+
+        llm_result = {}
+        if cohere_key:
+            try:
+                from cohere import ClientV2
+                co = ClientV2(api_key=cohere_key)
+                resp = co.chat(
+                    model='command-r-plus-08-2024',
+                    messages=[{'role': 'user', 'content': prompt}],
+                    temperature=0.4, max_tokens=300,
+                )
+                text = resp.message.content[0].text.strip()
+                text = text.lstrip('```json').lstrip('```').rstrip('```').strip()
+                llm_result = json.loads(text)
+            except Exception as e:
+                print(f'[WeeklyReport] {e}')
+
+        return jsonify({
+            'success': True,
+            'period': {'from': week_ago, 'to': today},
+            'macroBreakdown': {
+                'calories': round(total_cal), 'protein': round(total_protein, 1),
+                'carbs': round(total_carbs, 1), 'fat': round(total_fat, 1),
+            },
+            'activity': {
+                'activeDays': active_days, 'totalMinutes': total_active_min,
+                'caloriesBurned': round(total_burned), 'topActivity': top_activity,
+            },
+            'loggedDays': logged_days,
+            'streakDays': active_days,
+            **llm_result,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))

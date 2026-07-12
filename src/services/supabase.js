@@ -17,10 +17,10 @@ const ExpoSecureStoreAdapter = {
 };
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
-
-console.log('Supabase URL loaded:', !!supabaseUrl);
-console.log('Supabase Anon Key loaded:', !!supabaseAnonKey);
+// SECURITY: Only use the public anon key on the frontend client.
+// The service role key bypasses Row Level Security (RLS) entirely, so exposing it
+// in client code creates a severe vulnerability where users can read/write any table.
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Supabase credentials missing! Check your .env file and restart Expo.');

@@ -40,6 +40,8 @@ import WellnessQuizScreen from "../screens/wellness/WellnessQuizScreen";
 import DailyWellnessCheckInScreen from "../screens/wellness/DailyWellnessCheckInScreen";
 import AIChatInterface from "../components/AIChatInterface";
 import AchievementsScreen from "../screens/fitness/AchievementsScreen";
+import GoalPlannerScreen from "../screens/fitness/GoalPlannerScreen";
+
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -167,6 +169,7 @@ function CommunityStack() {
       <Stack.Screen name="CampusPulse" component={CampusPulseLeaderboardScreen} />
       <Stack.Screen name="HealthInsights" component={HealthInsightsScreen} />
       <Stack.Screen name="Achievements" component={AchievementsScreen} />
+      <Stack.Screen name="GoalPlanner" component={GoalPlannerScreen} />
     </Stack.Navigator>
   );
 }
@@ -175,6 +178,7 @@ function MoreMenu({ navigation }) {
   const { isAdmin, logout } = useAuth();
   const items = [
     { icon: "🧠", label: "AI Health Insights", screen: "HealthInsights", color: COLORS.violet },
+    { icon: "📅", label: "AI Goal Planner", screen: "GoalPlanner", color: COLORS.primary },
     { icon: "🔥", label: "Campus Pulse", screen: "CampusPulse", color: COLORS.primary },
     { icon: "🏆", label: "Leaderboard", screen: "Leaderboard", color: COLORS.orange },
     {
@@ -188,6 +192,7 @@ function MoreMenu({ navigation }) {
     { icon: "⚙️", label: "Settings", screen: "Settings", color: COLORS.orange },
   ];
   if (isAdmin) items.unshift({ icon: "🛡️", label: "Admin Dashboard", screen: "AdminDashboard", color: COLORS.error });
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.background, paddingTop: Platform.OS === "ios" ? 60 : 40 }}>
       <Text style={{ fontSize: FONT_SIZES.xxl, ...FONTS.bold, color: COLORS.text, paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl }}>Community</Text>
